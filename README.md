@@ -162,11 +162,11 @@ docker compose exec app python -m scripts.ingest
 ## Notes / Extensions
 
 Ingestion notes:
-- Docs are chunked by markdown headings at ingest time, so you can trace issues to sections.
+- Docs are chunked by markdown headings with hierarchy preserved and code blocks kept intact, so you can trace issues to sections without splitting code blocks.
 - If you change docs or the chunking logic, clear `chroma_data` and re-run ingestion.
 
 If you want this to behave like a real system:
-- Replace `HashEmbeddingFunction` with a real embedding model
+- Use a real embedding model (default supports Ollama via `EMBEDDING_PROVIDER=ollama`)
 - Add a “doc freshness” signal (age since last update)
 - Visualize `/issues` and `/top-unanswered` in Grafana
 

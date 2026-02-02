@@ -216,6 +216,40 @@
     {
       "id": 7,
       "type": "timeseries",
+      "title": "Issue types / sec",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "expr": "sum by (issue_type) (rate(ai_docs_issue_types_total[1m]))",
+          "legendFormat": "{{issue_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
       "title": "Request latency (p50/p95)",
       "datasource": {
         "type": "prometheus",
@@ -249,7 +283,75 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 24
+        "y": 32
+      }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Low coverage / sec",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(ai_docs_low_coverage_total[1m])",
+          "legendFormat": "{{__name__}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Weak evidence / sec",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "expr": "rate(ai_docs_weak_evidence_total[1m])",
+          "legendFormat": "{{__name__}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
       }
     }
   ],
@@ -271,5 +373,5 @@
   "timezone": "",
   "title": "AI Docs Observability",
   "uid": "ai-docs-observability",
-  "version": 1
+  "version": 3
 }

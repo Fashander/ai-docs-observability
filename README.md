@@ -154,7 +154,6 @@ docker compose exec app python -m scripts.ingest
 - `ops/grafana/dashboards/ai-docs-observability.json` — dashboard definition
 - `scripts/ingest.py` — docs ingestion into Chroma
 - `data/docs/v1.0/*.md` and `data/docs/v1.1/*.md` — versioned sample docs
-- `data/docs/troubleshooting.md` — shared troubleshooting notes
 
 ## Notes / Extensions
 

@@ -1,0 +1,7 @@
+fastapi==0.115.8
+uvicorn[standard]==0.30.6
+prometheus-client==0.21.0
+pydantic==2.10.5
+chroma-hnswlib==0.7.6
+chromadb==0.5.5
+python-dotenv==1.0.1

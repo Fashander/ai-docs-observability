@@ -1,0 +1,41 @@
+services:
+  app:
+    build: .
+    container_name: ai_docs_app
+    ports:
+      - "8000:8000"
+    environment:
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - LOG_DIR=/app/logs
+      - TOP_K=4
+      - MIN_CITATIONS=1
+      - OLLAMA_MODEL=llama3.2
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - ./chroma_data:/app/chroma_data
+      - ./logs:/app/logs
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: ai_docs_prometheus
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ai_docs_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_USERS_DEFAULT_THEME=dark
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus

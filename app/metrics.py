@@ -35,6 +35,22 @@ unsupported_feature_questions_total = Counter(
     "Queries asking about features that are not supported (based on doc evidence / rules)",
 )
 
+issue_types_total = Counter(
+    f"{NAMESPACE}_issue_types_total",
+    "Detected issue types from /ask responses",
+    labelnames=("issue_type",),
+)
+
+low_coverage_total = Counter(
+    f"{NAMESPACE}_low_coverage_total",
+    "Queries with low coverage between query terms and retrieved text",
+)
+
+weak_evidence_total = Counter(
+    f"{NAMESPACE}_weak_evidence_total",
+    "Queries where top citation distance exceeds the weak-evidence threshold",
+)
+
 request_latency_seconds = Histogram(
     f"{NAMESPACE}_request_latency_seconds",
     "Latency for /ask requests",

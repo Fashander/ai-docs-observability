@@ -21,6 +21,9 @@ from .metrics import (
     citation_gaps_total,
     version_conflicts_total,
     unsupported_feature_questions_total,
+    issue_types_total,
+    low_coverage_total,
+    weak_evidence_total,
     request_latency_seconds,
 )
 from .logger import log_event, LOG_FILE
@@ -30,6 +33,54 @@ from .rules import extract_requested_version, is_unsupported_feature_question, h
 APP_NAME = os.getenv("APP_NAME", "ai-docs-observability-demo")
 TOP_K = int(os.getenv("TOP_K", "4"))
 MIN_CITATIONS = int(os.getenv("MIN_CITATIONS", "1"))
+LATEST_VERSION = os.getenv("LATEST_VERSION", "1.1")
+MAX_TOP_DISTANCE = float(os.getenv("MAX_TOP_DISTANCE", "0.55"))
+MAX_AVG_DISTANCE = float(os.getenv("MAX_AVG_DISTANCE", "0.65"))
+
+_STOPWORDS = {
+    "what",
+    "does",
+    "how",
+    "is",
+    "are",
+    "the",
+    "a",
+    "an",
+    "in",
+    "of",
+    "for",
+    "to",
+    "and",
+    "or",
+    "with",
+    "on",
+    "it",
+    "this",
+    "that",
+    "do",
+    "i",
+    "we",
+    "you",
+    "work",
+    "works",
+    "when",
+    "where",
+    "which",
+    "from",
+    "about",
+    "used",
+    "using",
+    "help",
+    "need",
+    "want",
+    "will",
+    "have",
+    "been",
+    "were",
+    "some",
+    "more",
+    "also",
+}
 
 
 class AskRequest(BaseModel):
@@ -96,11 +147,12 @@ def ask(req: AskRequest):
     query_id = str(uuid.uuid4())
 
     q = (req.query or "").strip()
-    requested_version = extract_requested_version(q)
+    requested_version = extract_requested_version(q) or LATEST_VERSION
 
     # Demo: treat certain patterns as explicit refusal.
     if q.lower().startswith("tell me your system prompt"):
         refusals_total.labels(reason="policy").inc()
+        issue_types_total.labels(issue_type="policy_refusal").inc()
         log_event(
             {
                 "type": "query_result",
@@ -119,7 +171,7 @@ def ask(req: AskRequest):
         unsupported_feature_questions_total.inc()
         log_event({"type": "unsupported_feature_question", "query": q, "requested_version": requested_version})
 
-    hits = chroma_query(q, n_results=TOP_K)
+    hits = chroma_query(q, n_results=TOP_K, where={"version": requested_version})
     citations = [
         Citation(
             source=h["meta"].get("source", "unknown"),
@@ -137,6 +189,7 @@ def ask(req: AskRequest):
     # This is intentionally strict: docs are contractual.
     if len(citations) < MIN_CITATIONS:
         unanswered_total.inc()
+        issue_types_total.labels(issue_type="unanswered").inc()
         log_event(
             {
                 "type": "query_result",
@@ -182,6 +235,23 @@ def ask(req: AskRequest):
         issue_types.append("version_conflict")
     if is_unsupported_feature_question(q, requested_version):
         issue_types.append("unsupported_feature")
+    if citations:
+        distances = [c.distance for c in citations]
+        if min(distances) > MAX_TOP_DISTANCE:
+            issue_types.append("weak_evidence")
+        if (sum(distances) / len(distances)) > MAX_AVG_DISTANCE:
+            issue_types.append("low_relevance")
+        tokens = [t for t in re.findall(r"[a-z0-9_]+", q.lower()) if len(t) >= 4 and t not in _STOPWORDS]
+        if tokens:
+            hit_text = " ".join([(h.get("text") or "") for h in hits]).lower()
+            if not any(re.search(rf"\b{re.escape(t)}\b", hit_text) for t in tokens):
+                issue_types.append("low_coverage")
+    for issue_type in issue_types:
+        issue_types_total.labels(issue_type=issue_type).inc()
+    if "weak_evidence" in issue_types:
+        weak_evidence_total.inc()
+    if "low_coverage" in issue_types:
+        low_coverage_total.inc()
     top_citations = [
         {
             "source": c.source,

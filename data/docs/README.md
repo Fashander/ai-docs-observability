@@ -1,12 +1,12 @@
 # Sample Docs Corpus
 
-This folder intentionally contains a tiny, imperfect “documentation set” so the observability signals are easy to reproduce.
+This folder contains a small documentation set for a hypothetical vector database. The docs are split by version to simulate breaking changes and incremental feature additions.
 
-- `product-v1.0.md` says Feature X is **not supported**.
-- `product-v1.1.md` introduces Feature X and adds a few config flags.
+- `v1.0/` describes the baseline command set, flags, configuration, and security model.
+- `v1.1/` adds Feature X, filter mode, and extended security guidance.
 - `troubleshooting.md` contains a common-but-incomplete TLS section.
 
 Run ingestion, then hit the `/ask` endpoint with queries like:
-- “Does product support Feature X?”
-- “How do I configure TLS?”
-- “Is Feature X supported in v1.0?”
+- "Does product support Feature X?"
+- "How do I configure TLS?"
+- "Is Feature X supported in v1.0?"

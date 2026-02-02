@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import os
+import urllib.request
 from typing import List, Sequence
 
 try:
@@ -40,3 +43,43 @@ class HashEmbeddingFunction(EmbeddingFunction):
                 vec = [x / norm for x in vec]
             vectors.append(vec)
         return vectors
+
+
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    """Ollama-backed embedding function for semantic retrieval."""
+
+    def __init__(self, model: str, base_url: str, timeout_sec: float = 30.0):
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.timeout_sec = timeout_sec
+
+    def __call__(self, texts: Sequence[str]) -> List[List[float]]:
+        vectors: List[List[float]] = []
+        for text in texts:
+            payload = json.dumps({"model": self.model, "prompt": text}).encode("utf-8")
+            req = urllib.request.Request(
+                f"{self.base_url}/api/embeddings",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=self.timeout_sec) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            embedding = data.get("embedding")
+            if not isinstance(embedding, list):
+                raise RuntimeError("Ollama embeddings response missing 'embedding'")
+            vectors.append(embedding)
+        return vectors
+
+
+def get_embedding_function() -> EmbeddingFunction:
+    provider = os.getenv("EMBEDDING_PROVIDER", "hash").lower()
+    if provider == "ollama":
+        model = os.getenv("OLLAMA_EMBED_MODEL") or os.getenv("OLLAMA_MODEL")
+        if not model:
+            raise RuntimeError("OLLAMA_EMBED_MODEL (or OLLAMA_MODEL) is required for Ollama embeddings")
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        timeout_sec = float(os.getenv("OLLAMA_TIMEOUT_SEC", "30"))
+        return OllamaEmbeddingFunction(model=model, base_url=base_url, timeout_sec=timeout_sec)
+    dim = int(os.getenv("EMBED_DIM", "256"))
+    return HashEmbeddingFunction(dim=dim)

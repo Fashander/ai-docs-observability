@@ -6,12 +6,12 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 
-from .embeddings import HashEmbeddingFunction
+from .embeddings import get_embedding_function
 
 PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "chroma_data")
 COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "docs")
 
-_embed = HashEmbeddingFunction(dim=int(os.getenv("EMBED_DIM", "256")))
+_embed = get_embedding_function()
 
 
 def get_collection():
@@ -36,12 +36,13 @@ def upsert_docs(docs: List[Dict[str, Any]]) -> None:
     )
 
 
-def query(text: str, n_results: int = 4) -> List[Dict[str, Any]]:
+def query(text: str, n_results: int = 4, where: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     col = get_collection()
     res = col.query(
         query_texts=[text],
         n_results=n_results,
         include=["documents", "metadatas", "distances"],
+        where=where,
     )
     out: List[Dict[str, Any]] = []
     for i in range(len(res["ids"][0])):

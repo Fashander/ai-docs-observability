@@ -376,3 +376,106 @@ def issues(window: str = "24h", top: int = 20):
     ]
     rows.sort(key=lambda r: r.count, reverse=True)
     return IssuesResponse(issues=rows[: max(top, 0)])
+from .agent import run_agent
+from .langfuse_utils import get_langfuse_callback, score as langfuse_score, is_enabled as langfuse_enabled
+
+
+@app.post("/agent")
+def agent_endpoint(req: AskRequest):
+    """Agent-style multi-hop answering with tracing.
+
+    This is intentionally separate from /ask so you can compare:
+      - /ask: single-pass retrieval + answer
+      - /agent: multi-step retrieval (tutorial-style agent)
+    """
+    query_id = str(uuid.uuid4())
+    queries_total.inc()
+
+    requested_version = extract_requested_version(req.query) or LATEST_VERSION
+    lf_cb = None
+    if langfuse_enabled():
+        lf_cb = get_langfuse_callback(trace_id=query_id, session_id=req.session_id, user_id=req.user_id)
+
+    with request_latency_seconds.time():
+        out = run_agent(req.query, requested_version=requested_version, callbacks=[lf_cb] if lf_cb else None)
+
+    # Agent output is free-form text. We still attach our doc-health signals
+    # by re-running retrieval once and applying the same deterministic checks.
+    hits = chroma_query(req.query, n_results=TOP_K, where={"version": requested_version})
+
+    citations: List[Citation] = []
+    for h in hits:
+        meta = h["meta"]
+        citations.append(
+            Citation(
+                source=meta.get("source", ""),
+                title=os.path.basename(meta.get("source", "")) or meta.get("title", "doc"),
+                version=str(meta.get("version", "unknown")),
+                heading=str(meta.get("heading", "")),
+                doc_id=str(meta.get("doc_id", h["id"])),
+                section_id=str(meta.get("section_id", "")),
+                distance=float(h.get("distance", 1.0)),
+            )
+        )
+
+    issue_types = []
+    # reuse existing checks
+    if has_version_conflict([c.model_dump() for c in citations], requested_version):
+        issue_types.append("version_conflict")
+    if is_unsupported_feature_question(req.query, requested_version):
+        issue_types.append("unsupported_feature")
+    if citations:
+        distances = [c.distance for c in citations]
+        if min(distances) > MAX_TOP_DISTANCE:
+            issue_types.append("weak_evidence")
+        tokens = [t for t in re.findall(r"[a-z0-9_]+", req.query.lower()) if len(t) >= 4 and t not in _STOPWORDS]
+        if tokens:
+            hit_text = " ".join([(h.get("text") or "") for h in hits]).lower()
+            if not any(re.search(rf"\b{re.escape(t)}\b", hit_text) for t in tokens):
+                issue_types.append("low_coverage")
+    if len(citations) < MIN_CITATIONS:
+        issue_types.append("citation_gap")
+
+    for it in issue_types:
+        issue_types_total.labels(issue_type=it).inc()
+    if "version_conflict" in issue_types:
+        version_conflicts_total.inc()
+    if "unsupported_feature" in issue_types:
+        unsupported_feature_questions_total.inc()
+    if "low_coverage" in issue_types:
+        low_coverage_total.inc()
+    if "weak_evidence" in issue_types:
+        weak_evidence_total.inc()
+    if "citation_gap" in issue_types:
+        citation_gaps_total.inc()
+
+    # Send doc-health scores to Langfuse if enabled (nice UI + shareable traces)
+    if langfuse_enabled():
+        for it in issue_types:
+            langfuse_score(
+                trace_id=query_id,
+                name=f"doc_{it}",
+                value=1.0,
+                comment=f"Detected {it} for query",
+                metadata={"requested_version": requested_version, "query": req.query},
+            )
+
+    log_event(
+        {
+            "type": "agent_result",
+            "query_id": query_id,
+            "query": req.query,
+            "requested_version": requested_version,
+            "issue_types": issue_types,
+            "answer_preview": (out.get("answer") or "")[:400],
+            "top_citations": [c.model_dump() for c in citations[:3]],
+        }
+    )
+
+    return {
+        "query_id": query_id,
+        "answer": out.get("answer"),
+        "issue_types": issue_types,
+        "citations": [c.model_dump() for c in citations],
+        "requested_version": requested_version,
+    }

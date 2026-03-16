@@ -171,3 +171,36 @@ If you want this to behave like a real system:
 - Visualize `/issues` and `/top-unanswered` in Grafana
 
 License: MIT (do whatever you want)
+
+
+## Agent mode (Part 2)
+
+This repo also includes an **agent-style** endpoint that behaves like most tutorials:
+- multi-step retrieval (ReAct)
+- tool calls to `retrieve_docs`
+- designed for "multi-hop" doc tasks
+
+Endpoint:
+- `POST /agent` (same request body as `/ask`)
+
+Example:
+```bash
+curl -s http://localhost:8000/agent \
+  -H 'content-type: application/json' \
+  -d '{"query":"I\'m on v1.1 - how do I migrate my TLS config without downtime?"}' | jq
+```
+
+### Langfuse tracing (optional)
+
+If you set Langfuse env vars, `/agent` will attach **traces** + your deterministic **doc-health scores** (e.g., `doc_low_coverage`, `doc_version_conflict`) to the same trace.
+
+Required env vars:
+- `LANGFUSE_HOST`
+- `LANGFUSE_PUBLIC_KEY`
+- `LANGFUSE_SECRET_KEY`
+
+Once enabled, each request returns a `query_id` that matches the Langfuse `trace_id`.
+
+Notes:
+- `/ask` stays deliberately simple and can run without LangChain.
+- `/agent` uses LangChain + LangGraph and is meant for Part 2 of the write-up.

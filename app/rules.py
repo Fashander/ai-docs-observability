@@ -37,9 +37,7 @@ def has_version_conflict(citations: List[Dict[str, Any]], requested_version: Opt
     if not citations:
         return False
     versions = {c.get("version") for c in citations if c.get("version")}
+    if requested_version:
+        versions.add(requested_version)
     versions.discard(None)
-    if not versions:
-        return False
-    # Flag only when the retrieved chunks themselves span multiple versions,
-    # not when requested_version simply differs from a uniform citation set.
     return len(versions) >= 2

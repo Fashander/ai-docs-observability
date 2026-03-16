@@ -10,9 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi.responses import Response
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
@@ -106,7 +103,6 @@ class AskResponse(BaseModel):
     refusal_reason: Optional[str] = None
     citations: List[Citation] = []
     requested_version: Optional[str] = None
-    issue_types: List[str] = []
 
 
 class UnansweredQuery(BaseModel):
@@ -132,25 +128,6 @@ class IssuesResponse(BaseModel):
 
 
 app = FastAPI(title=APP_NAME)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-_STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
-if os.path.isdir(_STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
-
-
-@app.get("/", include_in_schema=False)
-def root():
-    index = os.path.join(_STATIC_DIR, "index.html")
-    if os.path.exists(index):
-        return FileResponse(index)
-    return {"ok": True, "app": APP_NAME}
 
 
 @app.get("/healthz")
@@ -224,7 +201,8 @@ def ask(req: AskRequest):
                 "answer_mode": "unanswered",
             }
         )
-        request_latency_seconds.observe(time.time() - start)
+        with request_latency_seconds.time():
+            pass
         return AskResponse(
             answer=None,
             refused=False,
@@ -263,7 +241,7 @@ def ask(req: AskRequest):
             issue_types.append("weak_evidence")
         if (sum(distances) / len(distances)) > MAX_AVG_DISTANCE:
             issue_types.append("low_relevance")
-        tokens = [t for t in re.findall(r"[a-z0-9_]+", q.lower()) if len(t) >= 3 and t not in _STOPWORDS]
+        tokens = [t for t in re.findall(r"[a-z0-9_]+", q.lower()) if len(t) >= 4 and t not in _STOPWORDS]
         if tokens:
             hit_text = " ".join([(h.get("text") or "") for h in hits]).lower()
             if not any(re.search(rf"\b{re.escape(t)}\b", hit_text) for t in tokens):
@@ -305,7 +283,6 @@ def ask(req: AskRequest):
         refused=False,
         citations=citations,
         requested_version=requested_version,
-        issue_types=issue_types,
     )
 
 
